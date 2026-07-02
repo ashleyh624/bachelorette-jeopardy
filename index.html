@@ -95,6 +95,12 @@
     padding:4px 2px;min-width:220px;max-width:420px;
   }
   .title-input:focus{outline:none;border-bottom-color:var(--gold);}
+  .newlywed-input{
+    background:transparent;border:none;border-bottom:2px solid rgba(255,255,255,0.14);
+    color:var(--muted);font-family:var(--font-body);font-weight:600;font-size:14px;
+    padding:4px 2px;min-width:160px;max-width:220px;
+  }
+  .newlywed-input:focus{outline:none;border-bottom-color:var(--gold);color:var(--cream);}
   .topbar-actions{display:flex;gap:10px;flex-wrap:wrap;}
 
   .scoreboard{display:flex;gap:10px;}
@@ -289,8 +295,12 @@ function normalizeClue(cl){
   return cl;
 }
 function normalizeBoard(board){
+  board.newlywedName = board.newlywedName || "";
   board.categories.forEach(function(cat){ cat.clues.forEach(normalizeClue); });
   return board;
+}
+function newlywedLabel(board){
+  return (board.newlywedName && board.newlywedName.trim()) || "Newlywed";
 }
 function loadStore(){
   try{
@@ -332,7 +342,7 @@ function newCategory(){
 function emptyBoard(){
   var cats = [];
   for(var i=0;i<DEFAULT_CATEGORIES;i++){ cats.push(newCategory()); }
-  return {id: uid("b"), title:"", categories: cats};
+  return {id: uid("b"), title:"", newlywedName:"", categories: cats};
 }
 function cloneExampleBoard(){
   var copy = JSON.parse(JSON.stringify(EXAMPLE_BOARD));
@@ -783,7 +793,7 @@ function renderHome(){
       '<div class="board-card">'+
         '<div class="progress-pill">'+c.filled+' / '+c.total+' clues filled</div>'+
         '<h3>'+escapeHtml(b.title||"Untitled Board")+'</h3>'+
-        '<div class="meta">'+(played ? ("In progress — Bride "+money(game.scores.bride)) : "Not played yet")+'</div>'+
+        '<div class="meta">'+(played ? ("In progress — "+escapeHtml(newlywedLabel(b))+" "+money(game.scores.bride)) : "Not played yet")+'</div>'+
         '<div class="card-actions">'+
           '<button class="btn btn-primary btn-sm" onclick="App.goPlay(\''+b.id+'\')">▶ Play</button>'+
           '<button class="btn btn-ghost btn-sm" onclick="App.goBuilder(\''+b.id+'\')">✎ Edit</button>'+
@@ -852,6 +862,7 @@ function renderBuilder(){
       '<div class="topbar-left">'+
         '<button class="btn btn-ghost btn-sm" onclick="App.goHome()">← Home</button>'+
         '<input type="text" class="title-input" placeholder="Board title (e.g. Jack &amp; Jill\'s Newlywed Game)" value="'+escapeHtml(board.title)+'" oninput="App.setBoardTitle(this.value)">'+
+        '<input type="text" class="newlywed-input" placeholder="Newlywed\'s name (optional, e.g. Jill)" value="'+escapeHtml(board.newlywedName)+'" oninput="App.setNewlywedName(this.value)">'+
       '</div>'+
       '<div class="topbar-actions">'+
         '<button class="btn btn-primary" onclick="App.goPlay(\''+board.id+'\')">▶ Save &amp; Play</button>'+
@@ -896,7 +907,7 @@ function renderPlay(){
       '</div>'+
       '<div class="topbar-actions" style="align-items:center;">'+
         '<div class="scoreboard">'+
-          '<div class="score-chip bride">👰 Bride <span class="amt">'+money(game.scores.bride)+'</span></div>'+
+          '<div class="score-chip bride">👰 '+escapeHtml(newlywedLabel(board))+' <span class="amt">'+money(game.scores.bride)+'</span></div>'+
         '</div>'+
         '<button class="btn btn-ghost btn-sm" onclick="App.goBuilder(\''+board.id+'\')">✎ Edit</button>'+
         '<button class="btn btn-ghost btn-sm" onclick="App.confirmResetGame(\''+board.id+'\')">↺ Reset Game</button>'+
@@ -1028,6 +1039,7 @@ function renderPlayClue(){
   var key = clueKey(m.catIdx, m.valIdx);
   var game = getGame(board.id);
   var used = game.used[key];
+  var label = escapeHtml(newlywedLabel(board));
 
   var imagesHtml = cl.images && cl.images.length ? '<div class="clue-images">'+cl.images.map(function(i){ return '<img src="'+i+'" onclick="App.expandImage(this)">'; }).join("")+'</div>' : "";
   var videosHtml = (used || m.phase === "bride") ? clueVideosHtml(cl) : "";
@@ -1037,7 +1049,7 @@ function renderPlayClue(){
   var body = "";
 
   if(used){
-    var byLabel = used.by === "bride" ? "👰 The Bride got it" : "➖ The Bride missed it";
+    var byLabel = used.by === "bride" ? "👰 "+label+" got it" : "➖ "+label+" missed it";
     body = (
       '<div class="clue-question">'+questionText+'</div>'+
       '<div class="clue-answer">'+answerText+'</div>'+
@@ -1063,10 +1075,10 @@ function renderPlayClue(){
       '<div class="clue-answer">'+answerText+'</div>'+
       videosHtml+
       imagesHtml+
-      '<div class="modal-label">Did the Bride get it?</div>'+
+      '<div class="modal-label">Did '+label+' get it?</div>'+
       '<div class="score-row">'+
-        '<button class="btn btn-bride" onclick="App.scoreClue(\'bride\')">👰 Bride Got It (+'+money(cl.value)+')</button>'+
-        '<button class="btn btn-ghost" onclick="App.scoreClue(\'none\')">❌ Bride Missed It</button>'+
+        '<button class="btn btn-bride" onclick="App.scoreClue(\'bride\')">👰 '+label+' Got It (+'+money(cl.value)+')</button>'+
+        '<button class="btn btn-ghost" onclick="App.scoreClue(\'none\')">❌ '+label+' Missed It</button>'+
       '</div>'
     );
   }
@@ -1086,9 +1098,10 @@ function renderGameOver(){
   var board = store.boards[ui.boardId];
   var game = getGame(board.id);
   var b = game.scores.bride;
+  var label = escapeHtml(newlywedLabel(board));
   var totalPossible = VALUES.reduce(function(s,v){return s+v;},0) * board.categories.length;
   var pct = totalPossible ? b / totalPossible : 0;
-  var headline = pct >= 0.8 ? "👰 She Knows Them So Well!" : pct >= 0.4 ? "👰 Not Bad, Bride!" : "👰 Time For Date Night!";
+  var headline = pct >= 0.8 ? "👰 "+label+" Knows Them So Well!" : pct >= 0.4 ? "👰 Not Bad, "+label+"!" : "👰 Time For Date Night!";
 
   var colors = ["#e3bd54","#ff6fa5","#f6e3a1","#3fbd7a"];
   var pieces = "";
@@ -1107,7 +1120,7 @@ function renderGameOver(){
         '<div class="trophy">🏆</div>'+
         '<h2>'+headline+'</h2>'+
         '<div class="final-scores">'+
-          '<div class="score-chip bride">👰 Bride\'s Final Score <span class="amt">'+money(b)+'</span></div>'+
+          '<div class="score-chip bride">👰 '+label+'\'s Final Score <span class="amt">'+money(b)+'</span></div>'+
         '</div>'+
         '<div class="gameover-actions">'+
           '<button class="btn btn-primary" onclick="App.playAgain()">↺ Play Again</button>'+
@@ -1237,6 +1250,11 @@ App.deleteBoard = function(id){
 
 App.setBoardTitle = function(val){
   store.boards[ui.boardId].title = val;
+  store.boards[ui.boardId]._updated = Date.now();
+  saveStore();
+};
+App.setNewlywedName = function(val){
+  store.boards[ui.boardId].newlywedName = val;
   store.boards[ui.boardId]._updated = Date.now();
   saveStore();
 };
